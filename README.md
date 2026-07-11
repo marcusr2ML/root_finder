@@ -1,3 +1,4 @@
+**This README was AI generated**
 # Root Finder
 
 A modern C++ library for implementing and testing numerical root-finding algorithms while exploring dependency management, package integration, and CI/CD workflows.
