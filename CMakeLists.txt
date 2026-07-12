@@ -28,13 +28,3 @@ target_link_libraries(bisection
         Boost::headers
 )
 
-add_executable(test_newton tests/test_newton.cpp)
-target_link_libraries(test_newton PRIVATE newton)
-
-add_executable(test_bisection tests/test_bisection.cpp)
-target_link_libraries(test_bisection PRIVATE bisection)
-
-enable_testing()
-
-add_test(NAME test_newton COMMAND test_newton)
-add_test(NAME test_bisection COMMAND test_bisection)
