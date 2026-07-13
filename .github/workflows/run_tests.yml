@@ -1,0 +1,30 @@
+name: Run Tests
+on:
+  workflow_run:
+    workflows: ["Generate Tests via Claude"]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  test:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y cmake g++ libeigen3-dev libboost-all-dev
+
+      - name: Configure CMake
+        run: cmake -S . -B build
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Run tests
+        run: ctest --test-dir build --output-on-failure
