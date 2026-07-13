@@ -24,15 +24,16 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           direct_prompt: |
-            Read tests/problems.md. For every header in include/ tagged
-            with a "@test_against:" comment, regenerate
+            Read tests/problems.md. For every header in include/, regenerate
             tests/test_<lowercase_header_name>.cpp as a Catch2 file with
-            one TEST_CASE per tagged problem. Call the header's function
-            using its real signature (matching parameters by name/type),
-            with values pulled from the matching problem(s) in
-            problems.md. If a function's parameters can't be confidently
-            matched, leave a "// TODO: ambiguous signature" comment
-            instead of guessing.
+            one TEST_CASE per problem in problems.md that the function's
+            signature can actually be called against (e.g. skip a problem
+            with no "derivative:" field if the function requires one).
+            Call the header's function using its real signature (matching
+            parameters by name/type), with values pulled from the matching
+            problem in problems.md. If a function's parameters can't be
+            confidently matched to a problem, leave a
+            "// TODO: ambiguous signature" comment instead of guessing.
 
             Only touch files under tests/. Overwrite each
             tests/test_<name>.cpp entirely — do not create new files
