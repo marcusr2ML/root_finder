@@ -32,7 +32,7 @@ jobs:
             If a function's parameters can't be confidently matched, leave
             a "// TODO: ambiguous signature" comment instead of guessing.
             Overwrite tests/generated_tests.cpp entirely with the result.
-          allowed_tools: "Read,Write"
+          allowed_tools: "Read,Write(tests/**)"
           claude_args: |
             --max-turns 5
 
