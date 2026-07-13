@@ -1,0 +1,51 @@
+name: Generate Tests via Claude
+on:
+  workflow_call:
+    inputs:
+      ref:
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Regenerate tests with Claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          direct_prompt: |
+            Read tests/problems.md. For every header in include/, regenerate
+            tests/test_<lowercase_header_name>.cpp as a Catch2 file with
+            one TEST_CASE per problem in problems.md that the function's
+            signature can actually be called against (e.g. skip a problem
+            with no "derivative:" field if the function requires one).
+            Call the header's function using its real signature (matching
+            parameters by name/type), with values pulled from the matching
+            problem in problems.md. If a function's parameters can't be
+            confidently matched to a problem, leave a
+            "// TODO: ambiguous signature" comment instead of guessing.
+
+            Only touch files under tests/. Overwrite each
+            tests/test_<name>.cpp entirely — do not create new files
+            outside that naming pattern, and do not touch CMakeLists.txt.
+          allowed_tools: "Read,Write(tests/**)"
+          claude_args: |
+            --max-turns 5
+
+      - name: Commit generated tests
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add tests/test_*.cpp
+          git diff --staged --quiet || git commit -m "chore: regenerate tests via Claude"
+          git push origin HEAD:${{ inputs.ref }}
