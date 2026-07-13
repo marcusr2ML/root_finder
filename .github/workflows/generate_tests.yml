@@ -4,6 +4,8 @@ on:
     workflows: ["C++ Build"]
     types: [completed]
     branches: [main]
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: write
