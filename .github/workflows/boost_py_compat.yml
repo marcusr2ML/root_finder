@@ -42,12 +42,14 @@ jobs:
 
       - name: Download Boost ${{ env.BOOST_VERSION }} source
         run: |
-          wget -q "https://github.com/boostorg/boost/releases/download/boost-${BOOST_VERSION}/boost-${BOOST_VERSION}.tar.gz"
-          tar xzf "boost-${BOOST_VERSION}.tar.gz"
+          BOOST_UNDERSCORE=$(echo "$BOOST_VERSION" | tr '.' '_')
+          wget -q "https://archives.boost.io/release/${BOOST_VERSION}/source/boost_${BOOST_UNDERSCORE}.tar.gz"
+          tar xzf "boost_${BOOST_UNDERSCORE}.tar.gz"
+          echo "BOOST_DIR=boost_${BOOST_UNDERSCORE}" >> "$GITHUB_ENV"
 
       - name: Bootstrap Boost (target this Python)
         id: bootstrap
-        working-directory: boost-${{ env.BOOST_VERSION }}
+        working-directory: ${{ env.BOOST_DIR }}
         continue-on-error: true
         run: |
           ./bootstrap.sh --with-python=$(which python3) --with-libraries=python
@@ -55,7 +57,7 @@ jobs:
       - name: Build Boost.Python
         id: boost_build
         if: steps.bootstrap.outcome == 'success'
-        working-directory: boost-${{ env.BOOST_VERSION }}
+        working-directory: ${{ env.BOOST_DIR }}
         continue-on-error: true
         run: |
           ./b2 --with-python variant=release link=shared threading=multi -j$(nproc)
@@ -88,10 +90,10 @@ jobs:
         if: steps.boost_build.outcome == 'success'
         run: |
           PYTAG=$(python3 -c "import sys; print(f'{sys.version_info.major}{sys.version_info.minor}')")
-          BOOST_STAGE="boost-${BOOST_VERSION}/stage/lib"
+          BOOST_STAGE="${BOOST_DIR}/stage/lib"
           echo "boost_stage=${BOOST_STAGE}" >> "$GITHUB_OUTPUT"
           g++ test_embed.cpp -o test_embed \
-            -I"boost-${BOOST_VERSION}" \
+            -I"${BOOST_DIR}" \
             $(python3-config --includes) \
             -L"${BOOST_STAGE}" \
             -lboost_python${PYTAG} \
