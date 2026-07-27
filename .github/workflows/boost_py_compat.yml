@@ -1,0 +1,122 @@
+name: boost-python-compat
+
+# Builds Boost.Python from source against a matrix of Python versions
+# and runs a minimal embed smoke test. Fixed OS + compiler for now —
+# add those as matrix axes later once this baseline works.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/boost-python-compat.yml"
+
+env:
+  BOOST_VERSION: "1.85.0"
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential g++ wget
+
+      - name: Report toolchain
+        id: toolchain
+        run: |
+          echo "python_path=$(which python3)" >> "$GITHUB_OUTPUT"
+          python3 --version
+          g++ --version
+          echo "python3-config includes: $(python3-config --includes)"
+
+      - name: Download Boost ${{ env.BOOST_VERSION }} source
+        run: |
+          wget -q "https://github.com/boostorg/boost/releases/download/boost-${BOOST_VERSION}/boost-${BOOST_VERSION}.tar.gz"
+          tar xzf "boost-${BOOST_VERSION}.tar.gz"
+
+      - name: Bootstrap Boost (target this Python)
+        id: bootstrap
+        working-directory: boost-${{ env.BOOST_VERSION }}
+        continue-on-error: true
+        run: |
+          ./bootstrap.sh --with-python=$(which python3) --with-libraries=python
+
+      - name: Build Boost.Python
+        id: boost_build
+        if: steps.bootstrap.outcome == 'success'
+        working-directory: boost-${{ env.BOOST_VERSION }}
+        continue-on-error: true
+        run: |
+          ./b2 --with-python variant=release link=shared threading=multi -j$(nproc)
+
+      - name: Write embed smoke test
+        run: |
+          cat > test_embed.cpp << 'EOF'
+          #include <boost/python.hpp>
+          namespace py = boost::python;
+
+          int main() {
+              Py_Initialize();
+              try {
+                  py::object main_module = py::import("__main__");
+                  py::object main_namespace = main_module.attr("__dict__");
+                  py::exec("result = 2 + 2\nprint('boost.python says:', result)", main_namespace);
+                  int result = py::extract<int>(main_namespace["result"]);
+                  if (result != 4) { return 2; }
+              } catch (py::error_already_set&) {
+                  PyErr_Print();
+                  return 1;
+              }
+              Py_Finalize();
+              return 0;
+          }
+          EOF
+
+      - name: Compile smoke test
+        id: compile
+        if: steps.boost_build.outcome == 'success'
+        run: |
+          PYTAG=$(python3 -c "import sys; print(f'{sys.version_info.major}{sys.version_info.minor}')")
+          BOOST_STAGE="boost-${BOOST_VERSION}/stage/lib"
+          echo "boost_stage=${BOOST_STAGE}" >> "$GITHUB_OUTPUT"
+          g++ test_embed.cpp -o test_embed \
+            -I"boost-${BOOST_VERSION}" \
+            $(python3-config --includes) \
+            -L"${BOOST_STAGE}" \
+            -lboost_python${PYTAG} \
+            $(python3-config --ldflags --embed 2>/dev/null || python3-config --ldflags) \
+            -Wl,-rpath,"$(pwd)/${BOOST_STAGE}"
+
+      - name: Run smoke test
+        id: run
+        if: steps.compile.outcome == 'success'
+        run: ./test_embed
+
+      - name: Record result
+        if: always()
+        run: |
+          echo "python=${{ matrix.python-version }}"                  >> result.txt
+          echo "boost=${BOOST_VERSION}"                                >> result.txt
+          echo "bootstrap=${{ steps.bootstrap.outcome }}"              >> result.txt
+          echo "boost_build=${{ steps.boost_build.outcome }}"          >> result.txt
+          echo "compile=${{ steps.compile.outcome }}"                  >> result.txt
+          echo "run=${{ steps.run.outcome }}"                          >> result.txt
+          cat result.txt
+
+      - name: Upload result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: result-python-${{ matrix.python-version }}
+          path: result.txt
