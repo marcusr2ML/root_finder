@@ -1,4 +1,4 @@
-name: boost-python-compat
+name: boost-python-compat-v2
 
 # Builds Boost.Python from source against a matrix of Python versions
 # and runs a minimal embed smoke test. Fixed OS + compiler for now —
@@ -215,15 +215,16 @@ jobs:
           BUILD_PY="${{ steps.build_py.outputs.path }}"
           BUILD_PYTAG=$("$BUILD_PY" -c "import sys; print(f'{sys.version_info.major}{sys.version_info.minor}')")
           BUILD_INC=$("$BUILD_PY" -c "import sysconfig; print(sysconfig.get_paths()['include'])")
-          BUILD_LIBDIR=$("$BUILD_PY" -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))")
           BOOST_STAGE="${BOOST_DIR}/stage/lib"
           echo "build_pytag=${BUILD_PYTAG}" >> "$GITHUB_OUTPUT"
+          # Note: extension modules (unlike embedding executables) do NOT
+          # link against libpython directly on Linux -- those symbols are
+          # resolved from the host interpreter process at import/dlopen
+          # time, not at build time.
           g++ -shared -fPIC ext_module.cpp -o compat_ext.so \
             -I"${BOOST_DIR}" -I"${BUILD_INC}" \
             -L"${BOOST_STAGE}" -lboost_python${BUILD_PYTAG} \
-            -L"${BUILD_LIBDIR}" -lpython${BUILD_PYTAG} \
-            -Wl,-rpath,"$(pwd)/${BOOST_STAGE}" \
-            -Wl,-rpath,"${BUILD_LIBDIR}"
+            -Wl,-rpath,"$(pwd)/${BOOST_STAGE}"
 
       - name: Attempt import with run_python (mismatched version)
         id: run
