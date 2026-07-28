@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - ".github/workflows/boost-python-compat.yml"
+      - ".github/workflows/boost_python_compat_v2.yml"
 
 env:
   BOOST_VERSION: "1.85.0"
