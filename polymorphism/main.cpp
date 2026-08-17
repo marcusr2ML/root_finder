@@ -1,32 +1,57 @@
-#include <stdio.h>
+#include "algorithm.hpp"
+#include "function.hpp"
+#include "solver.hpp"
+
 #include <cmath>
-#include "unittests.hpp"
+#include <cstdio>
+#include <optional>
 
-// --- Unit Testing Engine ---
-void verifyRoot(UnitTests* solver, double expected, const char* algorithmName) {
-    double actual = solver->findZero();
+using namespace roots;
 
-    if (std::abs(expected - actual) < 0.001) {
-        printf("[PASS] %s successfully found root at: %f\n", algorithmName, actual);
-    } else {
-        printf("[FAIL] %s expected %f but got %f\n", algorithmName, expected, actual);
-    }
+namespace {
+
+// Judges one solver on one case and prints the row. Nothing here names a
+// formula or a method: the label comes from Solver::name(), the answer from
+// the hidden catalog.
+bool judge(const Solver& s, const Function& f, const TestCase& c) {
+    const std::optional<double> root = s.findZero();
+
+    const bool ok = root ? (c.expected && std::abs(*root - *c.expected) < c.tol)
+                         : !c.expected.has_value();
+
+    std::printf("[%s]%s %-10s %-12s ",
+                ok ? "PASS" : "FAIL",
+                c.required ? " " : "*",
+                s.name(), f.name());
+    if (root) std::printf("root = %+.10f\n", *root);
+    else      std::printf("no root found\n");
+
+    return ok;
 }
 
+} // namespace
+
 int main() {
-    double expected_root = 2.0;
+    int failures = 0;
 
-    // Use polymorphic pointers to switch algorithms at runtime
-    UnitTests* newton = new NewtonSolver(3.0);          // Initial guess = 3
-    UnitTests* bisection = new BisectionSolver(0.5, 4.0); // Bracket bounds = [0.5, 4.0]
+    std::printf("--- Reference solvers ---\n");
+    for (const TestCase& c : testCases()) {
+        auto f = makeFunction(c.id);
+        judge(BisectionSolver(*f, c.a, c.b), *f, c);
 
-    printf("--- Running Polynomial Zero Finder Tests ---\n");
-    verifyRoot(newton, expected_root, "Newton-Raphson");
-    verifyRoot(bisection, expected_root, "Bisection Method");
+        // A one-point method gets b; f'(a) is zero for the quadratic.
+        if (auto df = makeDifferentiable(c.id))
+            judge(NewtonSolver(*df, c.b), *df, c);
+    }
 
-    // Memory Cleanup
-    delete newton;
-    delete bisection;
+    std::printf("--- Contributed algorithm ---\n");
+    for (const TestCase& c : testCases()) {
+        auto f = makeFunction(c.id);
+        const bool ok = judge(*makeAlgorithm(*f, c.a, c.b), *f, c);
 
-    return 0;
+        if (!ok && c.required) ++failures;
+    }
+
+    std::printf("\n%d required case(s) failed  (* = informational)\n", failures);
+    return failures == 0 ? 0 : 1;
 }
