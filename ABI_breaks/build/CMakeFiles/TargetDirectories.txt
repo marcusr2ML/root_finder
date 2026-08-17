@@ -1,0 +1,3 @@
+/Users/marosale/python_boost_ABI/build/CMakeFiles/mymodule.dir
+/Users/marosale/python_boost_ABI/build/CMakeFiles/edit_cache.dir
+/Users/marosale/python_boost_ABI/build/CMakeFiles/rebuild_cache.dir
