@@ -1,0 +1,59 @@
+name: Contributed Algorithm
+
+# Runs when a contributor drops a new algorithm header into polymorphism/.
+# The harness files are watched too, so a change to the judge is checked as well.
+on:
+  push:
+    paths:
+      - 'polymorphism/algorithm.hpp'
+      - 'polymorphism/main.cpp'
+      - 'polymorphism/solver.hpp'
+      - 'polymorphism/function.hpp'
+      - 'polymorphism/functions.cpp'
+      - 'polymorphism/Makefile'
+      - '.github/workflows/algorithm.yml'
+  pull_request:
+    paths:
+      - 'polymorphism/algorithm.hpp'
+      - 'polymorphism/main.cpp'
+      - 'polymorphism/solver.hpp'
+      - 'polymorphism/function.hpp'
+      - 'polymorphism/functions.cpp'
+      - 'polymorphism/Makefile'
+      - '.github/workflows/algorithm.yml'
+  workflow_dispatch:
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build
+        run: make -C polymorphism algorithm_test
+
+      - name: Evaluate algorithm
+        run: |
+          # The harness exit code is ignored on purpose: the gate here is the
+          # pass rate, not whether every case passed.
+          ./polymorphism/algorithm_test | tee result.txt || true
+
+          rows=$(sed -n '/Contributed algorithm/,$p' result.txt | grep -c '^\[')
+          pass=$(sed -n '/Contributed algorithm/,$p' result.txt | grep -c '^\[PASS\]')
+
+          if [ "$rows" -eq 0 ]; then
+            echo "::error::No result rows found — the harness produced no output."
+            exit 1
+          fi
+
+          pct=$(( pass * 100 / rows ))
+          echo "Contributed algorithm passed $pass of $rows cases (${pct}%)."
+
+          if [ "$pct" -lt 50 ]; then
+            echo "::error::Pass rate ${pct}% is below the 50% threshold — upload rejected."
+            exit 1
+          fi
+
+          echo "Pass rate ${pct}% meets the 50% threshold — accepted."
